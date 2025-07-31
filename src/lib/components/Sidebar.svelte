@@ -3,7 +3,6 @@
   import { entries, entryStore } from '../stores/entries.js';
   import { tagStore, tags } from '../stores/tags.js';
   import { groupEntriesByMonth, formatLastEditedTime } from '../utils/date.js';
-  import { getTagColor } from '../utils/tagColors.js';
   import { capitalize } from '../utils/text.js';
   import type { JournalEntry } from '../database/db.js';
 
@@ -182,9 +181,9 @@
             </button>
           </div>
           
-          <div style="padding: var(--space-2);">
+          <div style="padding: var(--space-1);">
             {#each $tags.sort((a, b) => b.usageCount - a.usageCount) as tag}
-              <label class="flex items-center cursor-pointer transition-fast" style="gap: var(--space-3); padding: var(--space-3) var(--space-3); border-radius: var(--radius-md);">
+              <label class="flex items-center cursor-pointer transition-fast" style="gap: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md);">
                 <input
                   type="checkbox"
                   checked={selectedTagFilters.includes(tag.name)}
@@ -192,12 +191,8 @@
                   class="w-4 h-4 rounded"
                   style="color: var(--accent-blue);"
                 />
-                <span 
-                  class="w-3 h-3 rounded-full"
-                  style="background-color: {tag.color}"
-                ></span>
-                <span class="flex-1" style="font-size: var(--text-sm); color: var(--text-primary); font-weight: var(--font-medium);">{tag.name}</span>
-                <span style="font-size: var(--text-xs); color: var(--text-secondary); padding: var(--space-1) var(--space-2); border-radius: var(--radius-full); background: var(--background-tertiary);">{tag.usageCount}</span>
+                <span class="flex-1" style="font-size: var(--text-sm); color: var(--text-primary);">{tag.name}</span>
+                <span style="font-size: var(--text-xs); color: var(--text-secondary);">{tag.usageCount}</span>
               </label>
             {/each}
             
@@ -240,49 +235,40 @@
         </div>
         
         <!-- Entries for this month -->
-        <div style="display: flex; flex-direction: column; gap: var(--space-2); padding: 0 var(--space-4);">
-          {#each groupedEntries[monthYear] as entry (entry.id)}
-            <div class="relative entry-card-container">
+        <div style="padding: 0 var(--space-4);">
+          {#each groupedEntries[monthYear] as entry, index (entry.id)}
+            <div class="relative">
               <div
                 onclick={() => selectEntry(entry)}
-                class="entry-card w-full text-left transition-standard cursor-pointer"
+                class="w-full text-left transition-standard cursor-pointer"
                 class:active={selectedEntryId === entry.id}
-                style="height: 120px; display: flex; flex-direction: column; padding: var(--space-4);"
+                style="padding: var(--space-3) 0; display: flex; flex-direction: column; gap: var(--space-1);"
               >
-              <!-- Title and timestamp row -->
-              <div class="flex justify-between items-center" style="height: 24px; margin-bottom: var(--space-2);">
-                <h4 class="truncate" style="font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--text-primary); line-height: 1.2; flex: 1; margin-right: var(--space-2);">
-                  {capitalize(entry.title)}
-                </h4>
-                <span class="flex-shrink-0" style="font-size: var(--text-xs); color: var(--text-secondary); font-weight: var(--font-medium);">
-                  {formatLastEditedTime(new Date(entry.lastEditedAt || entry.timestamp))}
-                </span>
-              </div>
-              
-              <!-- Content row -->
-              <div style="height: 24px; margin-bottom: var(--space-2);">
-                <p class="truncate" style="font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.2;">
+                <!-- Title and timestamp row -->
+                <div class="flex justify-between items-center">
+                  <h4 class="truncate" style="font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--text-primary); flex: 1; margin-right: var(--space-2);">
+                    {capitalize(entry.title)}
+                  </h4>
+                  <span class="flex-shrink-0" style="font-size: var(--text-xs); color: var(--text-secondary); font-weight: var(--font-medium);">
+                    {formatLastEditedTime(new Date(entry.lastEditedAt || entry.timestamp))}
+                  </span>
+                </div>
+                
+                <!-- Content row -->
+                <p class="truncate" style="font-size: var(--text-sm); color: var(--text-secondary);">
                   {entry.content}
                 </p>
-              </div>
-              
-              <!-- Tags row -->
-              <div class="flex items-center" style="height: 24px; gap: var(--space-1); overflow: hidden;">
+                
+                <!-- Tags row -->
                 {#if entry.tags && entry.tags.length > 0}
-                  {#each entry.tags.slice(0, 3) as tag}
-                    <span class="inline-flex items-center text-white flex-shrink-0" style="padding: 2px 6px; font-size: var(--text-xs); background-color: {getTagColor(tag, $tags)}; border-radius: var(--radius-full); font-weight: var(--font-medium);">
-                      {capitalize(tag)}
-                    </span>
-                  {/each}
-                  {#if entry.tags.length > 3}
-                    <span class="flex-shrink-0" style="font-size: var(--text-xs); color: var(--text-tertiary);">+{entry.tags.length - 3}</span>
-                  {/if}
+                  <span style="font-size: var(--text-xs); color: var(--text-tertiary);">
+                    {entry.tags.map(tag => capitalize(tag)).join(' | ')}
+                  </span>
                 {/if}
-              </div>
               </div>
               
               <!-- Three dots menu button positioned absolutely -->
-              <div class="absolute bottom-6 right-2 entry-menu-container z-10">
+              <div class="absolute bottom-2 right-0 entry-menu-container z-10">
                 <button
                   onclick={(e) => toggleEntryMenu(entry.id, e)}
                   class="p-1 rounded-md hover:bg-opacity-20 transition-colors flex-shrink-0"
@@ -321,6 +307,11 @@
                   </div>
                 {/if}
               </div>
+              
+              <!-- Divider line (except for last entry) -->
+              {#if index < groupedEntries[monthYear].length - 1}
+                <div style="border-bottom: 1px solid var(--border-light);"></div>
+              {/if}
             </div>
           {/each}
         </div>

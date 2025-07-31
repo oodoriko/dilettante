@@ -7,6 +7,7 @@
   import type { JournalEntry } from '../database/db.js';
 
   export let onSelectEntry: ((entry: JournalEntry) => void) | undefined = undefined;
+  export let showFilteredEntries: ((type: 'all' | 'tags' | 'month' | 'year' | 'tag' | 'date', value?: string, title?: string, grouping?: 'month-year' | 'day-date' | 'month' | 'none') => void) | undefined = undefined;
 
   let currentMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   let calendarDays: (Date | null)[] = [];
@@ -41,7 +42,7 @@
       return entries;
     }
     return entries.filter(entry => 
-      entry.tags && tagFilters.some(filter => entry.tags.includes(filter))
+      entry.tags && tagFilters.some(filter => entry.tags!.includes(filter))
     );
   }
 
@@ -195,6 +196,29 @@
     return entriesByDate[date.toDateString()] || [];
   }
 
+  function getTagsForDate(date: Date): string[] {
+    const entries = getEntriesForDate(date);
+    const tags = new Set<string>();
+    entries.forEach(entry => {
+      if (entry.tags) {
+        entry.tags.forEach(tag => tags.add(tag));
+      }
+    });
+    return Array.from(tags);
+  }
+
+  function handleTagClick(date: Date) {
+    if (showFilteredEntries) {
+      const dateStr = date.toISOString().split('T')[0];
+      const formattedDate = date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      showFilteredEntries('date', dateStr, `${formattedDate}`, 'none');
+    }
+  }
+
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
@@ -203,11 +227,11 @@
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 </script>
 
-<div class="h-full p-8 bg-neutral-25 overflow-y-auto">
+<div class="h-full overflow-y-auto p-8" style="background: var(--background-primary); font-family: var(--font-primary);">
   <div class="max-w-6xl mx-auto">
     <!-- Calendar Header -->
     <div class="flex items-center justify-between mb-8">
-      <h2 class="text-3xl font-bold text-neutral-900">
+      <h2 style="font-size: var(--text-2xl); font-weight: var(--font-semibold); color: var(--text-primary);">
         {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
       </h2>
       
@@ -255,10 +279,6 @@
                       class="w-4 h-4 rounded"
                       style="color: var(--accent-blue);"
                     />
-                    <span 
-                      class="w-3 h-3 rounded-full"
-                      style="background-color: {tag.color}"
-                    ></span>
                     <span class="flex-1" style="font-size: var(--text-sm); color: var(--text-primary); font-weight: var(--font-medium);">{capitalize(tag.name)}</span>
                     <span style="font-size: var(--text-xs); color: var(--text-secondary); padding: var(--space-1) var(--space-2); border-radius: var(--radius-full); background: var(--background-tertiary);">{tag.usageCount}</span>
                   </label>
@@ -279,6 +299,7 @@
           onclick={previousMonth}
           class="btn-ghost"
           title="Previous Month"
+          style="color: var(--text-tertiary);"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
@@ -286,7 +307,10 @@
         </button>
         <button
           onclick={goToCurrentMonth}
-          class="w-2 h-2 bg-neutral-400 hover:bg-primary-500 rounded-full transition-all duration-200 hover:scale-125"
+          class="w-2 h-2 rounded-full transition-all duration-200 hover:scale-125"
+          style="background: var(--text-tertiary);"
+          onmouseenter={(e) => (e.target as HTMLElement).style.background = 'var(--accent-blue)'}
+          onmouseleave={(e) => (e.target as HTMLElement).style.background = 'var(--text-tertiary)'}
           title="Go to Current Month"
         >
         </button>
@@ -294,6 +318,7 @@
           onclick={nextMonth}  
           class="btn-ghost"
           title="Next Month"
+          style="color: var(--text-tertiary);"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -303,12 +328,13 @@
       </div>
     </div>
 
+    {#if Object.keys(entriesByDate).length > 0}
     <!-- Calendar Grid -->
-    <div class="bg-white rounded-2xl shadow-card border border-neutral-200 overflow-hidden">
+    <div class="rounded-2xl overflow-hidden" style="background: var(--background-primary); border: 1px solid var(--border-light); box-shadow: 0 1px 3px var(--shadow);">
       <!-- Day Headers -->
-      <div class="grid grid-cols-7 bg-neutral-50">
+      <div class="grid grid-cols-7" style="background: var(--background-secondary);">
         {#each dayNames as dayName}
-          <div class="p-4 text-center text-sm font-semibold text-neutral-700 border-r border-neutral-200 last:border-r-0">
+          <div class="p-4 text-center" style="font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--text-secondary); border-right: 1px solid var(--border-light);">
             {dayName}
           </div>
         {/each}
@@ -317,100 +343,59 @@
       <!-- Calendar Days -->
       <div class="grid grid-cols-7">
         {#each calendarDays as date, index}
-          <div class="min-h-36 border-r border-b border-neutral-200 last:border-r-0 {index >= 35 ? 'last:border-b-0' : ''} hover:bg-neutral-25 transition-colors">
+          {#if date}
+          <div class="min-h-36 transition-colors" style="border-right: 1px solid var(--border-light); border-bottom: 1px solid var(--border-light);" onmouseenter={(e) => (e.target as HTMLElement).style.background = 'var(--background-secondary)'} onmouseleave={(e) => (e.target as HTMLElement).style.background = 'transparent'}>
             <div class="h-full p-3 flex flex-col">
               <!-- Day Number -->
               <div class="flex justify-between items-start mb-3">
                 <span 
-                  class="text-sm font-semibold {isCurrentMonth(date) ? 'text-neutral-900' : 'text-neutral-400'} 
-                         {isToday(date) ? 'bg-neutral-900 text-white w-7 h-7 rounded-full flex items-center justify-center text-xs shadow-sm' : ''}"
+                  style="font-size: var(--text-sm); font-weight: var(--font-semibold); color: {isCurrentMonth(date) ? 'var(--text-primary)' : 'var(--text-tertiary)'}; {isToday(date) ? 'background: var(--text-primary); color: var(--background-primary); width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: var(--text-xs); box-shadow: 0 1px 3px var(--shadow);' : ''}"
                 >
                   {date.getDate()}
                 </span>
               </div>
 
-              <!-- Entries for this date -->
+              <!-- Tags for this date -->
               <div class="flex-1 space-y-1">
-                {#each getEntriesForDate(date).slice(0, 3) as entry}
-                  <div class="relative entry-card-container group">
-                    <div
-                      onclick={() => selectEntry(entry)}
-                      class="w-full text-left pr-6 pl-2 py-1 text-white rounded border-0 hover:shadow-sm transition-all duration-200 hover:scale-105 cursor-pointer"
-                      style="background-color: {getEntryColor(entry.tags || [], $tags)}; font-size: 10px; line-height: 1.2;"
-                      title="{entry.title}{entry.tags && entry.tags.length > 0 ? ' • Tags: ' + entry.tags.join(', ') : ''}"
-                    >
-                      <div class="truncate font-medium">{capitalize(entry.title)}</div>
-                    </div>
-                    
-                    <!-- Three dots menu button - only visible on hover -->
-                    <div class="absolute top-1/2 right-1 transform -translate-y-1/2 entry-menu-container z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onclick={(e) => toggleEntryMenu(entry.id, e)}
-                        class="w-4 h-4 rounded-sm hover:bg-black hover:bg-opacity-20 transition-colors flex-shrink-0 flex items-center justify-center text-xs"
-                        style="color: white; background: rgba(0,0,0,0.3); font-family: monospace; letter-spacing: 0; margin: 0; padding: 0;"
-                        title="Entry options"
-                      >
-                        <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 16 16">
-                          <path d="M3 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
-                        </svg>
-                      </button>
-                      
-                      {#if activeMenuEntryId === entry.id}
-                        <div class="absolute right-0 top-full mt-1 w-32 rounded-lg z-20" style="background: var(--background-primary); border: 1px solid var(--border-light); box-shadow: 0 4px 12px var(--shadow-hover);">
-                          <div class="py-1">
-                            <button
-                              onclick={(e) => { e.stopPropagation(); openMoveToModal(entry.id); }}
-                              class="w-full text-left px-2 py-1 hover:bg-opacity-50 transition-colors flex items-center gap-1"
-                              style="color: var(--text-primary); font-size: var(--text-xs);"
-                            >
-                              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                              </svg>
-                              Move to
-                            </button>
-                            <button
-                              onclick={(e) => { e.stopPropagation(); deleteEntry(entry.id); }}
-                              class="w-full text-left px-2 py-1 hover:bg-red-50 transition-colors flex items-center gap-1"
-                              style="color: var(--text-red); font-size: var(--text-xs);"
-                            >
-                              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      {/if}
-                    </div>
+                {#each getTagsForDate(date).slice(0, 3) as tag}
+                  <div
+                    onclick={() => handleTagClick(date)}
+                    class="w-full text-left py-1 cursor-pointer"
+                    style="color: var(--text-primary); font-size: 10px; line-height: 1.2;"
+                    title="View entries from {date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}"
+                  >
+                    <div class="truncate font-medium">| {capitalize(tag)}</div>
                   </div>
                 {/each}
                 
-                {#if getEntriesForDate(date).length > 3}
-                  <div class="text-center rounded" style="font-size: var(--text-xs); color: var(--text-secondary); background: var(--background-tertiary); padding: var(--space-1) var(--space-2);">
-                    +{getEntriesForDate(date).length - 3} more
+                {#if getTagsForDate(date).length > 3}
+                  <div class="text-center rounded" style="font-size: var(--text-xs); color: var(--text-secondary); background: var(--background-secondary); padding: var(--space-1) var(--space-2);">
+                    +{getTagsForDate(date).length - 3} more
                   </div>
                 {/if}
               </div>
             </div>
           </div>
+          {/if}
         {/each}
       </div>
     </div>
+    {/if}
 
     <!-- Entry Details -->
     {#if Object.keys(entriesByDate).length === 0}
       <div class="text-center mt-16">
-        <div class="w-20 h-20 bg-gradient-to-br from-neutral-100 to-neutral-200 rounded-2xl mx-auto mb-6 flex items-center justify-center shadow-soft">
-          <svg class="w-10 h-10 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="w-20 h-20 rounded-2xl mx-auto mb-6 flex items-center justify-center" style="background: var(--background-tertiary); box-shadow: 0 1px 3px var(--shadow);">
+          <svg class="w-10 h-10" style="color: var(--text-tertiary);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
         </div>
         {#if selectedTagFilters.length === 0}
-          <h3 class="text-xl font-semibold text-neutral-900 mb-3 text-balance">No entries yet</h3>
-          <p class="text-neutral-600 text-lg leading-relaxed text-balance">Start writing your first journal entry to see it appear on the calendar</p>
+          <h3 style="font-size: var(--text-xl); font-weight: var(--font-semibold); color: var(--text-primary); margin-bottom: var(--space-3);">No entries yet</h3>
+          <p style="color: var(--text-secondary); font-size: var(--text-lg); line-height: 1.6;">Start writing your first journal entry to see it appear on the calendar</p>
         {:else}
-          <h3 class="text-xl font-semibold text-neutral-900 mb-3 text-balance">No entries with selected tags</h3>
-          <p class="text-neutral-600 text-lg leading-relaxed text-balance">Try selecting different tags or create new entries with these tags</p>
+          <h3 style="font-size: var(--text-xl); font-weight: var(--font-semibold); color: var(--text-primary); margin-bottom: var(--space-3);">No entries with selected tags</h3>
+          <p style="color: var(--text-secondary); font-size: var(--text-lg); line-height: 1.6;">Try selecting different tags or create new entries with these tags</p>
         {/if}
       </div>
     {/if}
@@ -438,10 +423,6 @@
                     class="w-4 h-4 rounded"
                     style="color: var(--accent-blue);"
                   />
-                  <span 
-                    class="w-3 h-3 rounded-full"
-                    style="background-color: {tag.color}"
-                  ></span>
                   <span class="flex-1" style="font-size: var(--text-sm); color: var(--text-primary); font-weight: var(--font-medium);">{capitalize(tag.name)}</span>
                   <span style="font-size: var(--text-xs); color: var(--text-secondary); padding: var(--space-1) var(--space-2); border-radius: var(--radius-full); background: var(--background-tertiary);">{tag.usageCount}</span>
                 </label>

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount, createEventDispatcher } from 'svelte';
   import { tagStore, tags } from '../stores/tags.js';
-  import { getTagColor } from '../utils/tagColors.js';
   import { capitalize } from '../utils/text.js';
   import type { Tag } from '../database/db.js';
 
@@ -94,14 +93,14 @@
     <!-- Selected Tags -->
     {#each selectedTags as tag}
       <div 
-        class="inline-flex items-center text-white transition-fast"
-        style="padding: var(--space-1) var(--space-2); font-size: var(--text-xs); font-weight: var(--font-medium); border-radius: var(--radius-full); background-color: {getTagColor(tag, $tags)}"
+        class="inline-flex items-center transition-fast"
+        style="padding: var(--space-1) var(--space-2); font-size: var(--text-xs); color: var(--text-primary); border: 1px solid var(--border-light); border-radius: var(--radius-sm); background: var(--background-secondary);"
       >
         {capitalize(tag)}
         <button
           onclick={() => removeTag(tag)}
           class="rounded-full transition-fast"
-          style="margin-left: var(--space-2); padding: var(--space-1); opacity: 0.7;"
+          style="margin-left: var(--space-1); padding: 1px; opacity: 0.7; color: var(--text-secondary);"
           title="Remove tag"
         >
           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -119,7 +118,7 @@
       onkeydown={handleKeyDown}
       onfocus={handleInput}
       placeholder={selectedTags.length === 0 ? "Add tags..." : ""}
-      class="flex-1 bg-transparent border-none outline-none"
+      class="flex-1 bg-transparent border-none outline-none tag-input-field"
       style="min-width: 128px; font-size: var(--text-sm); color: var(--text-primary);"
     />
   </div>
@@ -139,10 +138,6 @@
             style="padding: var(--space-3) var(--space-3); background: {index === selectedSuggestionIndex ? 'var(--accent-blue-light)' : 'transparent'}; color: {index === selectedSuggestionIndex ? 'var(--accent-blue)' : 'var(--text-primary)'};"
           >
             <div class="flex items-center" style="gap: var(--space-2);">
-              <span 
-                class="w-3 h-3 rounded-full"
-                style="background-color: {suggestion.color}"
-              ></span>
               <span style="font-size: var(--text-sm);">{capitalize(suggestion.name)}</span>
             </div>
             <span style="font-size: var(--text-xs); color: var(--text-secondary);">
@@ -154,8 +149,12 @@
     </div>
   {/if}
 
-  <!-- Helper Text -->
-  <div style="margin-top: var(--space-2); font-size: var(--text-xs); color: var(--text-secondary);">
-    <p>Type to search or create tags • Press Enter to add • Backspace to remove</p>
-  </div>
 </div>
+
+<style>
+  :global(.tag-input-field:focus) {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+</style>

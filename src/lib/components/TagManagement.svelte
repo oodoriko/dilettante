@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import { entries, entryStore } from '../stores/entries.js';
   import { tags, tagStore } from '../stores/tags.js';
-  import { getTagColor } from '../utils/tagColors.js';
   import { capitalize } from '../utils/text.js';
   import type { JournalEntry, Tag } from '../database/db.js';
 
@@ -319,8 +318,8 @@
   }
 </script>
 
-<div class="h-full overflow-y-auto p-8" style="background: var(--background-secondary);">
-  <div class="max-w-4xl mx-auto">
+<div class="h-full overflow-y-auto p-8" style="background: var(--background-primary); font-family: var(--font-primary);">
+  <div class="max-w-3xl mx-auto">
     <!-- Header -->
     <div class="mb-8" style="padding: var(--space-3) var(--space-4);">
     </div>
@@ -329,7 +328,6 @@
     <div class="mb-6">
       {#if isCreatingNewTag}
         <div class="flex items-center gap-3 p-4 rounded-lg" style="background: var(--background-primary); border: 1px solid var(--border-light);">
-          <div class="w-3 h-3 rounded-full" style="background-color: var(--accent-blue);"></div>
           <input
             bind:this={newTagInput}
             bind:value={newTagName}
@@ -382,17 +380,12 @@
           <div class="tag-section">
             <!-- Tag Header -->
             <div 
-              class="flex items-center justify-between p-4 cursor-pointer hover:bg-opacity-50 transition-colors rounded-lg"
-              style="background: var(--background-primary); border: 1px solid var(--border-light);"
+              class="cursor-pointer transition-colors"
+              style="padding: var(--space-3) 0; display: flex; align-items: center; justify-between;"
               onclick={() => toggleTag(tag.name)}
             >
-              <div class="flex items-center gap-3">
-                <div class="flex items-center gap-2">
-                  <span 
-                    class="w-3 h-3 rounded-full"
-                    style="background-color: {tag.color}"
-                  ></span>
-                  
+              <div class="flex items-center justify-between w-full">
+                <div>
                   {#if editingTag === tag.name}
                     <input
                       bind:this={editTagInput}
@@ -401,12 +394,12 @@
                       onblur={handleTagBlur}
                       onclick={(e) => e.stopPropagation()}
                       class="bg-transparent border-none outline-none"
-                      style="font-size: var(--text-lg); font-weight: var(--font-semibold); color: var(--text-primary); min-width: 100px;"
+                      style="font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--text-primary); min-width: 100px;"
                       maxlength="30"
                     />
                   {:else}
                     <h3 
-                      style="font-size: var(--text-lg); font-weight: var(--font-semibold); color: var(--text-primary); margin: 0;"
+                      style="font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--text-primary); margin: 0;"
                       ondblclick={(e) => { e.stopPropagation(); startEditingTag(tag.name); }}
                       title="Double-click to edit"
                     >
@@ -415,109 +408,112 @@
                   {/if}
                 </div>
                 
-                <span 
-                  class="text-xs px-2 py-1 rounded-full"
-                  style="background: var(--background-tertiary); color: var(--text-secondary);"
-                >
-                  {tag.usageCount} {tag.usageCount === 1 ? 'entry' : 'entries'}
-                </span>
-              </div>
-
-              <div class="flex items-center gap-2">
-                <button
-                  onclick={(e) => { e.stopPropagation(); startEditingTag(tag.name); }}
-                  class="p-2 rounded-md hover:bg-opacity-50 transition-colors"
-                  style="color: var(--text-secondary);"
-                  title="Edit tag name"
-                >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                <div class="flex items-center gap-2">
+                  <span style="font-size: var(--text-xs); color: var(--text-tertiary);">
+                    {tag.usageCount} {tag.usageCount === 1 ? 'entry' : 'entries'}
+                  </span>
+                  
+                  <button
+                    onclick={(e) => { e.stopPropagation(); startEditingTag(tag.name); }}
+                    class="p-1 rounded-md hover:bg-opacity-50 transition-colors"
+                    style="color: var(--text-tertiary);"
+                    title="Edit tag name"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  
+                  <button
+                    onclick={(e) => { e.stopPropagation(); deleteTag(tag.name); }}
+                    class="p-1 rounded-md hover:bg-red-50 transition-colors"
+                    style="color: var(--text-tertiary);"
+                    title="Delete tag"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                  
+                  <svg 
+                    class="w-4 h-4 transition-transform" 
+                    style="color: var(--text-tertiary);" 
+                    class:rotate-180={expandedTags.has(tag.name)}
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                   </svg>
-                </button>
-                
-                <button
-                  onclick={(e) => { e.stopPropagation(); deleteTag(tag.name); }}
-                  class="p-2 rounded-md hover:bg-red-50 transition-colors"
-                  style="color: var(--text-secondary);"
-                  title="Delete tag"
-                >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-                
-                <svg 
-                  class="w-5 h-5 transition-transform" 
-                  style="color: var(--text-tertiary);" 
-                  class:rotate-180={expandedTags.has(tag.name)}
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
+                </div>
               </div>
             </div>
+            
+            <!-- Divider line -->
+            <div style="border-bottom: 1px solid var(--border-light);"></div>
 
             <!-- Expanded Entries -->
             {#if expandedTags.has(tag.name)}
-              <div class="ml-4 mt-2">
+              <div style="padding-left: var(--space-4); padding-top: var(--space-2);">
                 {#if tagEntries[tag.name] && tagEntries[tag.name].length > 0}
-                  <div class="max-h-60 overflow-y-auto space-y-2">
-                    {#each tagEntries[tag.name].slice(0, 5) as entry (entry.id)}
-                      <div class="relative entry-card-container">
+                  <div>
+                    {#each tagEntries[tag.name] as entry, index (entry.id)}
+                      <div class="relative">
                         <div
                           onclick={() => selectEntry(entry)}
-                          class="w-full text-left p-3 rounded-lg hover:bg-opacity-50 transition-colors cursor-pointer"
-                          style="background: var(--background-secondary); border: 1px solid var(--border-light);"
+                          class="w-full text-left transition-standard cursor-pointer"
+                          style="padding: var(--space-3) 0; display: flex; flex-direction: column; gap: var(--space-1);"
                         >
-                          <div class="flex justify-between items-start">
-                            <div class="flex-1 min-w-0">
-                              <h4 class="truncate" style="font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--text-primary); margin-bottom: var(--space-1);">
-                                {capitalize(entry.title)}
-                              </h4>
-                              <p class="truncate" style="font-size: var(--text-sm); color: var(--text-secondary); margin: 0;">
-                                {entry.content}
-                              </p>
-                            </div>
-                            <span class="flex-shrink-0 ml-3" style="font-size: var(--text-xs); color: var(--text-tertiary);">
+                          <!-- Title and timestamp row -->
+                          <div class="flex justify-between items-center">
+                            <h4 class="truncate" style="font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--text-primary); flex: 1; margin-right: var(--space-2);">
+                              {capitalize(entry.title)}
+                            </h4>
+                            <span class="flex-shrink-0" style="font-size: var(--text-xs); color: var(--text-secondary); font-weight: var(--font-medium);">
                               {formatEntryDate(entry)}
                             </span>
                           </div>
+                          
+                          <!-- Content row -->
+                          <p class="truncate" style="font-size: var(--text-sm); color: var(--text-secondary);">
+                            {entry.content}
+                          </p>
                         </div>
                         
                         <!-- Three dots menu button positioned absolutely -->
-                        <div class="absolute bottom-2 right-2 entry-menu-container z-10">
+                        <div class="absolute bottom-2 right-0 entry-menu-container z-10">
                           <button
                             onclick={(e) => toggleEntryMenu(entry.id, e)}
                             class="p-1 rounded-md hover:bg-opacity-20 transition-colors flex-shrink-0"
                             style="color: var(--text-tertiary); background: transparent;"
                             title="Entry options"
                           >
-                            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                               <path d="M6 12c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm6 0c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm6 0c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2z"/>
                             </svg>
                           </button>
                           
                           {#if activeMenuEntryId === entry.id}
-                            <div class="absolute right-0 top-full mt-1 w-40 rounded-lg z-20" style="background: var(--background-primary); border: 1px solid var(--border-light); box-shadow: 0 4px 12px var(--shadow-hover);">
+                            <div class="absolute right-0 top-full mt-1 w-40 rounded-lg z-[60]" style="background: var(--background-primary); border: 1px solid var(--border-light); box-shadow: 0 4px 12px var(--shadow-hover);">
                               <div class="py-1">
                                 <button
                                   onclick={(e) => { e.stopPropagation(); openMoveToModalFromTag(entry.id); }}
-                                  class="w-full text-left px-3 py-2 hover:bg-opacity-50 transition-colors flex items-center gap-2"
+                                  class="w-full text-left px-3 py-2 transition-colors flex items-center gap-2"
                                   style="color: var(--text-primary); font-size: var(--text-sm);"
+                                  onmouseenter={(e) => (e.target as HTMLElement).style.background = 'var(--background-tertiary)'}
+                                  onmouseleave={(e) => (e.target as HTMLElement).style.background = 'transparent'}
                                 >
-                                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                                   </svg>
                                   Move to
                                 </button>
                                 <button
-                                  onclick={(e) => { e.stopPropagation(); deleteEntryFromTag(entry.id); }}
+                                  onclick={(e) => { e.stopPropagation(); deleteEntryFromTag(entry.id!); }}
                                   class="w-full text-left px-3 py-2 hover:bg-red-50 transition-colors flex items-center gap-2"
                                   style="color: var(--text-red); font-size: var(--text-sm);"
                                 >
-                                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                   </svg>
                                   Delete
@@ -526,19 +522,16 @@
                             </div>
                           {/if}
                         </div>
+                        
+                        <!-- Divider line (except for last entry) -->
+                        {#if index < tagEntries[tag.name].length - 1}
+                          <div style="border-bottom: 1px solid var(--border-light);"></div>
+                        {/if}
                       </div>
                     {/each}
-                    
-                    {#if tagEntries[tag.name].length > 5}
-                      <div class="text-center py-2">
-                        <span style="font-size: var(--text-xs); color: var(--text-secondary);">
-                          +{tagEntries[tag.name].length - 5} more entries
-                        </span>
-                      </div>
-                    {/if}
                   </div>
                 {:else}
-                  <div class="text-center py-4">
+                  <div class="text-center" style="padding: var(--space-4) 0;">
                     <p style="font-size: var(--text-sm); color: var(--text-secondary);">No entries found</p>
                   </div>
                 {/if}
@@ -582,12 +575,8 @@
                     class="w-4 h-4 rounded"
                     style="color: var(--accent-blue);"
                   />
-                  <span 
-                    class="w-3 h-3 rounded-full"
-                    style="background-color: {tag.color}"
-                  ></span>
-                  <span class="flex-1" style="font-size: var(--text-sm); color: var(--text-primary); font-weight: var(--font-medium);">{capitalize(tag.name)}</span>
-                  <span style="font-size: var(--text-xs); color: var(--text-secondary); padding: var(--space-1) var(--space-2); border-radius: var(--radius-full); background: var(--background-tertiary);">{tag.usageCount}</span>
+                                  <span class="flex-1" style="font-size: var(--text-sm); color: var(--text-primary); font-weight: var(--font-medium);">{capitalize(tag.name)}</span>
+                  <span style="font-size: var(--text-xs); color: var(--text-secondary);">{tag.usageCount}</span>
                 </label>
               {/each}
             </div>

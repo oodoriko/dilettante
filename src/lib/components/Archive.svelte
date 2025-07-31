@@ -3,21 +3,25 @@
   import { entries, entryStore } from '../stores/entries.js';
   import { tags, tagStore } from '../stores/tags.js';
   import { capitalize } from '../utils/text.js';
-  import { formatLastEditedTime } from '../utils/date.js';
   import type { JournalEntry } from '../database/db.js';
 
   export let onSelectEntry: ((entry: JournalEntry) => void) | undefined = undefined;
-  export let filterType: 'all' | 'tags' | 'month' | 'year' | 'tag' = 'all';
-  export let filterValue: string = '';
-  export let filterTitle: string = 'All Entries';
-  export let groupingType: 'month-year' | 'day-date' | 'month' | 'none' = 'none';
 
   let filteredEntries: JournalEntry[] = [];
-  let groupedEntries: { [key: string]: JournalEntry[] } = {};
   let activeMenuEntryId: number | null = null;
   let showMoveToModal = false;
   let moveToEntryId: number | null = null;
   let selectedMoveTags: string[] = [];
+
+  // Filter controls
+  let startDate = '';
+  let endDate = '';
+  let selectedTag = '';
+  let searchKeyword = '';
+  let selectedYear = '';
+
+  // Get unique years from entries
+  let availableYears: number[] = [];
 
   onMount(() => {
     entryStore.loadAll();
@@ -29,118 +33,73 @@
   });
 
   $: if ($entries.length) {
-    applyFilter();
-    groupEntries();
+    // Calculate available years
+    const years = new Set<number>();
+    $entries.forEach(entry => {
+      const entryYear = new Date(entry.timestamp).getFullYear();
+      years.add(entryYear);
+    });
+    availableYears = Array.from(years).sort((a, b) => b - a);
+    
+    applyFilters();
   }
 
-  function applyFilter() {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
+  function applyFilters() {
+    let filtered = [...$entries];
 
-    switch (filterType) {
-      case 'all':
-        filteredEntries = [...$entries];
-        break;
-      
-      case 'tags':
-        filteredEntries = $entries.filter(entry => entry.tags && entry.tags.length > 0);
-        break;
-      
-      case 'month':
-        if (filterValue === 'current') {
-          filteredEntries = $entries.filter(entry => {
-            const entryDate = new Date(entry.timestamp);
-            return entryDate.getFullYear() === currentYear && entryDate.getMonth() === currentMonth;
-          });
-        } else if (filterValue === 'last') {
-          const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-          const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-          filteredEntries = $entries.filter(entry => {
-            const entryDate = new Date(entry.timestamp);
-            return entryDate.getFullYear() === lastMonthYear && entryDate.getMonth() === lastMonth;
-          });
-        }
-        break;
-      
-      case 'year':
-        if (filterValue === 'current') {
-          filteredEntries = $entries.filter(entry => {
-            const entryDate = new Date(entry.timestamp);
-            return entryDate.getFullYear() === currentYear;
-          });
-        } else if (filterValue === 'last') {
-          filteredEntries = $entries.filter(entry => {
-            const entryDate = new Date(entry.timestamp);
-            return entryDate.getFullYear() === currentYear - 1;
-          });
-        }
-        break;
-      
-      case 'tag':
-        filteredEntries = $entries.filter(entry => 
-          entry.tags && entry.tags.includes(filterValue.toLowerCase())
-        );
-        break;
-      
-      default:
-        filteredEntries = [...$entries];
+    // Filter by date range
+    if (startDate) {
+      const start = new Date(startDate);
+      filtered = filtered.filter(entry => new Date(entry.timestamp) >= start);
+    }
+    
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999); // Include the entire end date
+      filtered = filtered.filter(entry => new Date(entry.timestamp) <= end);
+    }
+
+    // Filter by tag
+    if (selectedTag) {
+      filtered = filtered.filter(entry => 
+        entry.tags && entry.tags.includes(selectedTag)
+      );
+    }
+
+    // Filter by search keyword
+    if (searchKeyword.trim()) {
+      const keyword = searchKeyword.toLowerCase().trim();
+      filtered = filtered.filter(entry => 
+        entry.title.toLowerCase().includes(keyword) || 
+        entry.content.toLowerCase().includes(keyword) ||
+        (entry.tags && entry.tags.some(tag => tag.toLowerCase().includes(keyword)))
+      );
+    }
+
+    // Filter by year
+    if (selectedYear) {
+      const year = parseInt(selectedYear);
+      filtered = filtered.filter(entry => 
+        new Date(entry.timestamp).getFullYear() === year
+      );
     }
 
     // Sort by last edited date (most recent first)
-    filteredEntries.sort((a, b) => 
+    filtered.sort((a, b) => 
       new Date(b.lastEditedAt || b.timestamp).getTime() - 
       new Date(a.lastEditedAt || a.timestamp).getTime()
     );
+
+    filteredEntries = filtered;
   }
 
-  function groupEntries() {
-    if (groupingType === 'none') {
-      groupedEntries = {};
-      return;
-    }
-
-    groupedEntries = {};
-    
-    filteredEntries.forEach(entry => {
-      const date = new Date(entry.lastEditedAt || entry.timestamp);
-      let groupKey = '';
-      
-      switch (groupingType) {
-        case 'month-year':
-          groupKey = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-          break;
-        case 'day-date':
-          groupKey = date.toLocaleDateString('en-US', { 
-            weekday: 'long', 
-            month: 'short', 
-            day: 'numeric' 
-          });
-          break;
-        case 'month':
-          groupKey = date.toLocaleDateString('en-US', { month: 'long' });
-          break;
-      }
-      
-      if (!groupedEntries[groupKey]) {
-        groupedEntries[groupKey] = [];
-      }
-      groupedEntries[groupKey].push(entry);
-    });
-
-    // Sort group keys by date
-    const sortedKeys = Object.keys(groupedEntries).sort((a, b) => {
-      const entryA = groupedEntries[a][0];
-      const entryB = groupedEntries[b][0];
-      return new Date(entryB.lastEditedAt || entryB.timestamp).getTime() - 
-             new Date(entryA.lastEditedAt || entryA.timestamp).getTime();
-    });
-
-    const sortedGroupedEntries: { [key: string]: JournalEntry[] } = {};
-    sortedKeys.forEach(key => {
-      sortedGroupedEntries[key] = groupedEntries[key];
-    });
-    groupedEntries = sortedGroupedEntries;
+  function clearAllFilters() {
+    startDate = '';
+    endDate = '';
+    selectedTag = '';
+    searchKeyword = '';
+    selectedYear = '';
+    applyFilters();
   }
 
   function selectEntry(entry: JournalEntry) {
@@ -151,21 +110,6 @@
 
   function formatEntryDate(entry: JournalEntry): string {
     const date = new Date(entry.lastEditedAt || entry.timestamp);
-    
-    // Use detailed format for month filtered views
-    if (filterType === 'month') {
-      const day = date.getDate();
-      const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
-      const time = date.toLocaleTimeString('en-US', { 
-        hour: 'numeric', 
-        minute: '2-digit',
-        hour12: true 
-      }).toLowerCase();
-      
-      return `${day} ${weekday}, ${time}`;
-    }
-    
-    // Default format for other views
     return date.toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short',
@@ -255,8 +199,98 @@
     <!-- Header -->
     <div class="mb-8 text-center" style="padding: var(--space-3) var(--space-4);">
       <h1 style="color: var(--text-primary); font-size: var(--text-xl); font-weight: var(--font-medium); margin: 0; line-height: 1.6;">
-        {filterTitle} · {filteredEntries.length} {filteredEntries.length === 1 ? 'entry' : 'entries'}
+        Archive · {filteredEntries.length} {filteredEntries.length === 1 ? 'entry' : 'entries'}
       </h1>
+    </div>
+
+    <!-- Filter Controls -->
+    <div class="mb-8 space-y-4" style="background: var(--background-secondary); padding: var(--space-6); border-radius: var(--radius-lg);">
+      <div class="flex justify-between items-center mb-4">
+        <h3 style="font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--text-primary); margin: 0;">Filters</h3>
+        <button
+          onclick={clearAllFilters}
+          style="font-size: var(--text-xs); color: var(--accent-blue); background: transparent; border: none; cursor: pointer;"
+        >
+          Clear all
+        </button>
+      </div>
+
+      <!-- Date Range -->
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label style="font-size: var(--text-xs); color: var(--text-secondary); display: block; margin-bottom: var(--space-2);">Start Date</label>
+          <input
+            type="date"
+            bind:value={startDate}
+            class="w-full"
+            style="padding: var(--space-2); border: none; border-radius: var(--radius-md); background: var(--background-primary); color: var(--text-primary); font-size: var(--text-sm); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;"
+          />
+        </div>
+        <div>
+          <label style="font-size: var(--text-xs); color: var(--text-secondary); display: block; margin-bottom: var(--space-2);">End Date</label>
+          <input
+            type="date"
+            bind:value={endDate}
+            class="w-full"
+            style="padding: var(--space-2); border: none; border-radius: var(--radius-md); background: var(--background-primary); color: var(--text-primary); font-size: var(--text-sm); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;"
+          />
+        </div>
+      </div>
+
+      <!-- Tag and Year Filters -->
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label style="font-size: var(--text-xs); color: var(--text-secondary); display: block; margin-bottom: var(--space-2);">Filter by Tag</label>
+          <select
+            bind:value={selectedTag}
+            class="w-full"
+            style="padding: var(--space-2); border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--background-primary); color: var(--text-primary); font-size: var(--text-sm);"
+          >
+            <option value="">All tags</option>
+            {#each $tags.sort((a, b) => b.usageCount - a.usageCount) as tag}
+              <option value={tag.name}>{capitalize(tag.name)}</option>
+            {/each}
+          </select>
+        </div>
+        <div>
+          <label style="font-size: var(--text-xs); color: var(--text-secondary); display: block; margin-bottom: var(--space-2);">Filter by Year</label>
+          <select
+            bind:value={selectedYear}
+            class="w-full"
+            style="padding: var(--space-2); border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--background-primary); color: var(--text-primary); font-size: var(--text-sm);"
+          >
+            <option value="">All years</option>
+            {#each availableYears as year}
+              <option value={year.toString()}>{year}</option>
+            {/each}
+          </select>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div>
+        <label style="font-size: var(--text-xs); color: var(--text-secondary); display: block; margin-bottom: var(--space-2);">Search</label>
+        <div class="flex gap-2">
+          <input
+            type="text"
+            bind:value={searchKeyword}
+            placeholder="Search in titles, content, or tags..."
+            class="flex-1"
+            style="padding: var(--space-2); border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--background-primary); color: var(--text-primary); font-size: var(--text-sm);"
+            onkeydown={(e) => e.key === 'Enter' && applyFilters()}
+          />
+          <button
+            onclick={applyFilters}
+            class="px-4 py-2 rounded-md transition-colors"
+            style="background: var(--accent-blue); color: white; border: none; font-size: var(--text-sm); font-weight: var(--font-medium);"
+            title="Search"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Entries List -->
@@ -269,10 +303,9 @@
             </svg>
           </div>
           <h3 style="font-size: var(--text-xl); font-weight: var(--font-semibold); color: var(--text-primary); margin-bottom: var(--space-3);">No entries found</h3>
-          <p style="color: var(--text-secondary);">No entries match the selected criteria</p>
+          <p style="color: var(--text-secondary);">Try adjusting your filters or search criteria</p>
         </div>
-      {:else if groupingType === 'none'}
-        <!-- No grouping - show flat list -->
+      {:else}
         <div style="padding: 0 var(--space-4);">
           {#each filteredEntries as entry, index (entry.id)}
             <div class="relative">
@@ -307,7 +340,7 @@
               <!-- Three dots menu button positioned absolutely -->
               <div class="absolute bottom-2 right-0 entry-menu-container z-10">
                 <button
-                  onclick={(e) => toggleEntryMenu(entry.id, e)}
+                  onclick={(e) => toggleEntryMenu(entry.id!, e)}
                   class="p-1 rounded-md hover:bg-opacity-20 transition-colors flex-shrink-0"
                   class:bg-opacity-10={activeMenuEntryId === entry.id}
                   style="color: var(--text-tertiary); background: {activeMenuEntryId === entry.id ? 'var(--background-tertiary)' : 'transparent'};"
@@ -322,11 +355,11 @@
                   <div class="absolute right-0 top-full mt-1 w-40 rounded-lg z-[60]" style="background: var(--background-primary); border: 1px solid var(--border-light); box-shadow: 0 4px 12px var(--shadow-hover);">
                     <div class="py-1">
                       <button
-                        onclick={(e) => { e.stopPropagation(); openMoveToModal(entry.id); }}
+                        onclick={(e) => { e.stopPropagation(); openMoveToModal(entry.id!); }}
                         class="w-full text-left px-3 py-2 transition-colors flex items-center gap-2"
                         style="color: var(--text-primary); font-size: var(--text-sm);"
-                        onmouseenter={(e) => e.target.style.background = 'var(--background-tertiary)'}
-                        onmouseleave={(e) => e.target.style.background = 'transparent'}
+                        onmouseenter={(e) => (e.target as HTMLElement).style.background = 'var(--background-tertiary)'}
+                        onmouseleave={(e) => (e.target as HTMLElement).style.background = 'transparent'}
                       >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
@@ -334,7 +367,7 @@
                         Move to
                       </button>
                       <button
-                        onclick={(e) => { e.stopPropagation(); deleteEntry(entry.id); }}
+                        onclick={(e) => { e.stopPropagation(); deleteEntry(entry.id!); }}
                         class="w-full text-left px-3 py-2 hover:bg-red-50 transition-colors flex items-center gap-2"
                         style="color: var(--text-red); font-size: var(--text-sm);"
                       >
@@ -352,104 +385,6 @@
               {#if index < filteredEntries.length - 1}
                 <div style="border-bottom: 1px solid var(--border-light);"></div>
               {/if}
-            </div>
-          {/each}
-        </div>
-      {:else}
-        <!-- Grouped entries -->
-        <div class="space-y-6">
-          {#each Object.keys(groupedEntries) as groupKey}
-            <div>
-              <!-- Group Divider -->
-              <div class="mb-4" style="padding: var(--space-3) var(--space-4); background: var(--background-tertiary); border-radius: var(--radius-lg);">
-                <h3 style="font-size: var(--text-lg); font-weight: var(--font-semibold); color: var(--text-primary); margin: 0;">
-                  {groupKey}
-                </h3>
-              </div>
-              
-              <!-- Entries in this group -->
-              <div style="padding: 0 var(--space-4);">
-                {#each groupedEntries[groupKey] as entry, index (entry.id)}
-                  <div class="relative">
-                    <div
-                      onclick={() => selectEntry(entry)}
-                      class="w-full text-left transition-standard cursor-pointer"
-                      style="padding: var(--space-3) 0; display: flex; flex-direction: column; gap: var(--space-1);"
-                    >
-                      <!-- Title and timestamp row -->
-                      <div class="flex justify-between items-center">
-                        <h4 class="truncate" style="font-size: var(--text-sm); font-weight: var(--font-semibold); color: var(--text-primary); flex: 1; margin-right: var(--space-2);">
-                          {capitalize(entry.title)}
-                        </h4>
-                        <span class="flex-shrink-0" style="font-size: var(--text-xs); color: var(--text-secondary); font-weight: var(--font-medium);">
-                          {formatEntryDate(entry)}
-                        </span>
-                      </div>
-                      
-                      <!-- Content row -->
-                      <p class="truncate" style="font-size: var(--text-sm); color: var(--text-secondary);">
-                        {getEntryPreview(entry.content)}
-                      </p>
-                      
-                      <!-- Tags row -->
-                      {#if entry.tags && entry.tags.length > 0}
-                        <span style="font-size: var(--text-xs); color: var(--text-tertiary);">
-                          {entry.tags.map(tag => capitalize(tag)).join(' | ')}
-                        </span>
-                      {/if}
-                    </div>
-                    
-                    <!-- Three dots menu button positioned absolutely -->
-                    <div class="absolute bottom-2 right-0 entry-menu-container z-10">
-                      <button
-                        onclick={(e) => toggleEntryMenu(entry.id, e)}
-                        class="p-1 rounded-md hover:bg-opacity-20 transition-colors flex-shrink-0"
-                        class:bg-opacity-10={activeMenuEntryId === entry.id}
-                        style="color: var(--text-tertiary); background: {activeMenuEntryId === entry.id ? 'var(--background-tertiary)' : 'transparent'};"
-                        title="Entry options"
-                      >
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M6 12c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm6 0c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm6 0c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2z"/>
-                        </svg>
-                      </button>
-                      
-                      {#if activeMenuEntryId === entry.id}
-                        <div class="absolute right-0 top-full mt-1 w-40 rounded-lg z-[60]" style="background: var(--background-primary); border: 1px solid var(--border-light); box-shadow: 0 4px 12px var(--shadow-hover);">
-                          <div class="py-1">
-                            <button
-                              onclick={(e) => { e.stopPropagation(); openMoveToModal(entry.id); }}
-                              class="w-full text-left px-3 py-2 transition-colors flex items-center gap-2"
-                              style="color: var(--text-primary); font-size: var(--text-sm);"
-                              onmouseenter={(e) => e.target.style.background = 'var(--background-tertiary)'}
-                              onmouseleave={(e) => e.target.style.background = 'transparent'}
-                            >
-                              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                              </svg>
-                              Move to
-                            </button>
-                            <button
-                              onclick={(e) => { e.stopPropagation(); deleteEntry(entry.id); }}
-                              class="w-full text-left px-3 py-2 hover:bg-red-50 transition-colors flex items-center gap-2"
-                              style="color: var(--text-red); font-size: var(--text-sm);"
-                            >
-                              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      {/if}
-                    </div>
-                    
-                    <!-- Divider line (except for last entry) -->
-                    {#if index < groupedEntries[groupKey].length - 1}
-                      <div style="border-bottom: 1px solid var(--border-light);"></div>
-                    {/if}
-                  </div>
-                {/each}
-              </div>
             </div>
           {/each}
         </div>
@@ -479,12 +414,8 @@
                     class="w-4 h-4 rounded"
                     style="color: var(--accent-blue);"
                   />
-                  <span 
-                    class="w-3 h-3 rounded-full"
-                    style="background-color: {tag.color}"
-                  ></span>
                   <span class="flex-1" style="font-size: var(--text-sm); color: var(--text-primary); font-weight: var(--font-medium);">{capitalize(tag.name)}</span>
-                  <span style="font-size: var(--text-xs); color: var(--text-secondary); padding: var(--space-1) var(--space-2); border-radius: var(--radius-full); background: var(--background-tertiary);">{tag.usageCount}</span>
+                  <span style="font-size: var(--text-xs); color: var(--text-secondary);">{tag.usageCount}</span>
                 </label>
               {/each}
             </div>
@@ -511,3 +442,4 @@
     </div>
   </div>
 {/if}
+

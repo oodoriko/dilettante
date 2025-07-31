@@ -5,9 +5,10 @@
   import Statistics from '../lib/components/Statistics.svelte';
   import TagManagement from '../lib/components/TagManagement.svelte';
   import FilteredEntries from '../lib/components/FilteredEntries.svelte';
+  import Archive from '../lib/components/Archive.svelte';
   import type { JournalEntry } from '../lib/database/db.js';
 
-  let currentView: 'statistics' | 'new' | 'edit' | 'calendar' | 'tags' | 'filtered' = 'statistics';
+  let currentView: 'statistics' | 'new' | 'edit' | 'calendar' | 'tags' | 'filtered' | 'archive' = 'statistics';
   let selectedEntry: JournalEntry | null = null;
   let filterConfig = {
     type: 'all' as 'all' | 'tags' | 'month' | 'year' | 'tag',
@@ -28,6 +29,11 @@
 
   function showCalendar() {
     currentView = 'calendar';
+    selectedEntry = null;
+  }
+
+  function showArchive() {
+    currentView = 'archive';
     selectedEntry = null;
   }
 
@@ -83,6 +89,16 @@
           </button>
           
           <button
+            onclick={showArchive}
+            class="btn-secondary"
+            title="Archive"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
+          </button>
+          
+          <button
             onclick={showTags}
             class="btn-secondary"
             title="Manage Tags"
@@ -110,7 +126,9 @@
       {#if currentView === 'statistics'}
         <Statistics {showFilteredEntries} {showTags} />
       {:else if currentView === 'calendar'}
-        <Calendar onSelectEntry={selectEntry} />
+        <Calendar onSelectEntry={selectEntry} showFilteredEntries={showFilteredEntries} />
+      {:else if currentView === 'archive'}
+        <Archive onSelectEntry={selectEntry} />
       {:else if currentView === 'tags'}
         <TagManagement onSelectEntry={selectEntry} />
       {:else if currentView === 'filtered'}

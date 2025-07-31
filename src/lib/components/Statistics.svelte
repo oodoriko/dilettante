@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import { entries, entryStore } from '../stores/entries.js';
   import { tags, tagStore } from '../stores/tags.js';
-  import { getTagColor } from '../utils/tagColors.js';
   import { capitalize } from '../utils/text.js';
   import type { JournalEntry } from '../database/db.js';
 
@@ -20,7 +19,9 @@
     lastMonth: 0,
     currentYear: 0,
     lastYear: 0,
-    topTags: [] as Array<{ name: string; count: number; color: string }>
+    lastMonthToday: 0,
+    lastYearToday: 0,
+    topTags: [] as Array<{ name: string; count: number }>
   };
 
   onMount(() => {
@@ -66,6 +67,7 @@
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
+    const currentDate = now.getDate();
     
     // Basic counts
     stats.totalEntries = allEntries.length;
@@ -94,6 +96,23 @@
       return entryDate.getFullYear() === currentYear - 1;
     }).length;
 
+    // Same date last month and last year
+    stats.lastMonthToday = allEntries.filter(entry => {
+      const entryDate = new Date(entry.timestamp);
+      const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+      const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+      return entryDate.getFullYear() === lastMonthYear && 
+             entryDate.getMonth() === lastMonth && 
+             entryDate.getDate() === currentDate;
+    }).length;
+
+    stats.lastYearToday = allEntries.filter(entry => {
+      const entryDate = new Date(entry.timestamp);
+      return entryDate.getFullYear() === currentYear - 1 && 
+             entryDate.getMonth() === currentMonth && 
+             entryDate.getDate() === currentDate;
+    }).length;
+
     // Top tags calculation
     const tagUsage = new Map<string, number>();
     allEntries.forEach(entry => {
@@ -107,8 +126,7 @@
     stats.topTags = Array.from(tagUsage.entries())
       .map(([name, count]) => ({
         name,
-        count,
-        color: getTagColor(name, allTags)
+        count
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 3);
@@ -127,7 +145,7 @@
 
   function handleTotalEntriesClick() {
     if (showFilteredEntries) {
-      showFilteredEntries('all', '', 'All Entries', 'month-year');
+      showFilteredEntries('all', '', 'All', 'month-year');
     }
   }
 
@@ -139,215 +157,109 @@
 
   function handleCurrentMonthClick() {
     if (showFilteredEntries) {
-      showFilteredEntries('month', 'current', `${getMonthName()} Entries`, 'day-date');
+      showFilteredEntries('month', 'current', `${getMonthName()}`, 'day-date');
     }
   }
 
   function handleCurrentYearClick() {
     if (showFilteredEntries) {
-      showFilteredEntries('year', 'current', `${getYearName()} Entries`, 'month');
+      showFilteredEntries('year', 'current', `${getYearName()}`, 'month');
     }
   }
 
   function handleTagClick(tagName: string) {
     if (showFilteredEntries) {
-      showFilteredEntries('tag', tagName.toLowerCase(), `${capitalize(tagName)} Entries`, 'month-year');
+      showFilteredEntries('tag', tagName.toLowerCase(), `${capitalize(tagName)}`, 'month-year');
+    }
+  }
+
+  function handleLastMonthTodayClick() {
+    if (showFilteredEntries) {
+      const now = new Date();
+      const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+      const lastMonthYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+      const lastMonthDate = new Date(lastMonthYear, lastMonth, now.getDate());
+      showFilteredEntries('date', lastMonthDate.toISOString().split('T')[0], `${lastMonthDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 'none');
+    }
+  }
+
+  function handleLastYearTodayClick() {
+    if (showFilteredEntries) {
+      const now = new Date();
+      const lastYearDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+      showFilteredEntries('date', lastYearDate.toISOString().split('T')[0], `${lastYearDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 'none');
     }
   }
 </script>
 
-<div class="h-full overflow-y-auto p-8" style="background: var(--background-secondary);">
-  <div class="max-w-4xl mx-auto">
-    <!-- Header -->
-    <div class="mb-8 text-center" style="padding: var(--space-3) var(--space-4);">
-      {#if isEditingTitle}
-        <input
-          bind:this={titleInput}
-          bind:value={dashboardTitle}
-          onkeydown={handleTitleKeydown}
-          onblur={saveDashboardTitle}
-          class="bg-transparent border-none outline-none text-center"
-          style="color: var(--text-secondary); font-size: var(--text-lg); width: 100%; max-width: 400px;"
-          maxlength="50"
-        />
-      {:else}
-        <h1 
-          onclick={startEditingTitle}
-          class="cursor-pointer hover:opacity-75 transition-opacity"
-          style="color: var(--text-secondary); font-size: var(--text-lg); margin: 0;"
-        >
-          {dashboardTitle}
-        </h1>
+<div class="h-full overflow-y-auto flex items-center justify-center" style="background: var(--background-primary); padding: var(--space-8) var(--space-6);">
+  <div class="max-w-2xl text-center" style="line-height: 1.8; font-family: var(--font-primary);">
+    <div style="margin-bottom: var(--space-8);">
+      <h1 style="color: var(--text-primary); font-size: var(--text-xl); font-weight: var(--font-medium); margin-bottom: var(--space-8);">
+        Hi, it's {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.<br>
+        How are you doing?
+      </h1>
+    </div>
+    
+    <div style="text-align: center; margin: var(--space-8) 0;">
+      <div style="height: 1px; background: var(--border-light); margin: 0 auto; width: 60px;"></div>
+    </div>
+    
+{#if stats.lastMonthToday > 0 || stats.lastYearToday > 0}
+    
+    <div style="margin-bottom: var(--space-8);">
+      {#if stats.lastMonthToday > 0}
+        <p style="color: var(--text-secondary); margin-bottom: var(--space-2);">
+          Last month today you wrote <button onclick={handleLastMonthTodayClick} class="underline hover:no-underline transition-all" style="color: var(--text-secondary); cursor: pointer;">{stats.lastMonthToday} entries</button>.
+        </p>
+      {/if}
+      {#if stats.lastYearToday > 0}
+        <p style="color: var(--text-secondary); margin-bottom: var(--space-2);">
+          Last year today you wrote <button onclick={handleLastYearTodayClick} class="underline hover:no-underline transition-all" style="color: var(--text-secondary); cursor: pointer;">{stats.lastYearToday} entries</button>.
+        </p>
       {/if}
     </div>
-    <!-- Stats Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      <!-- Total Entries -->
-      <button class="stat-card text-left" onclick={handleTotalEntriesClick}>
-        <div class="flex items-center justify-between mb-4">
-          <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background: var(--accent-blue-light);">
-            <svg class="w-6 h-6" style="color: var(--accent-blue);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          </div>
-        </div>
-        <div style="font-size: var(--text-2xl); font-weight: var(--font-bold); color: var(--text-primary); margin-bottom: var(--space-1);">
-          {stats.totalEntries}
-        </div>
-        <div style="font-size: var(--text-sm); color: var(--text-secondary);">
-          Total Entries
-        </div>
-      </button>
-
-      <!-- Total Tags -->
-      <button class="stat-card text-left" onclick={handleTotalTagsClick}>
-        <div class="flex items-center justify-between mb-4">
-          <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background: var(--accent-green-light);">
-            <svg class="w-6 h-6" style="color: var(--accent-green);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-            </svg>
-          </div>
-        </div>
-        <div style="font-size: var(--text-2xl); font-weight: var(--font-bold); color: var(--text-primary); margin-bottom: var(--space-1);">
-          {stats.totalTags}
-        </div>
-        <div style="font-size: var(--text-sm); color: var(--text-secondary);">
-          Total Tags
-        </div>
-      </button>
-
-      <!-- Current Month -->
-      <button class="stat-card text-left" onclick={handleCurrentMonthClick}>
-        <div class="flex items-center justify-between mb-4">
-          <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background: var(--accent-purple-light);">
-            <svg class="w-6 h-6" style="color: var(--accent-purple);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </div>
-        </div>
-        <div style="font-size: var(--text-2xl); font-weight: var(--font-bold); color: var(--text-primary); margin-bottom: var(--space-1);">
-          {stats.currentMonth}
-        </div>
-        <div style="font-size: var(--text-sm); color: var(--text-secondary);">
-          This {getMonthName()}
-        </div>
-      </button>
-
-      <!-- Current Year -->
-      <button class="stat-card text-left" onclick={handleCurrentYearClick}>
-        <div class="flex items-center justify-between mb-4">
-          <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background: var(--accent-orange-light);">
-            <svg class="w-6 h-6" style="color: var(--accent-orange);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v6a2 2 0 002 2h2m0 0V9a2 2 0 012-2h2a2 2 0 012 2v6a2 2 0 01-2 2H9.1z" />
-            </svg>
-          </div>
-        </div>
-        <div style="font-size: var(--text-2xl); font-weight: var(--font-bold); color: var(--text-primary); margin-bottom: var(--space-1);">
-          {stats.currentYear}
-        </div>
-        <div style="font-size: var(--text-sm); color: var(--text-secondary);">
-          This Year ({getYearName()})
-        </div>
-      </button>
+    
+    <div style="text-align: center; margin: var(--space-8) 0;">
+      <div style="height: 1px; background: var(--border-light); margin: 0 auto; width: 60px;"></div>
+    </div>
+{/if}
+    
+    <div style="margin-bottom: var(--space-8);">
+      <p style="color: var(--text-secondary); margin-bottom: var(--space-2);">
+        This month, you've captured <button onclick={handleCurrentMonthClick} class="underline hover:no-underline transition-all" style="color: var(--text-secondary); cursor: pointer;">{stats.currentMonth} entries</button> of your journey{#if stats.lastMonth > 0}, {Math.abs(Math.round(((stats.currentMonth - stats.lastMonth) / stats.lastMonth) * 100))}% {stats.currentMonth > stats.lastMonth ? 'more' : stats.currentMonth < stats.lastMonth ? 'less' : 'the same'} than last month{:else if stats.lastMonth === 0 && stats.currentMonth > 0}, your first entries this period{/if}.
+      </p>
+      <p style="color: var(--text-secondary); margin-bottom: var(--space-2);">
+        This year, you've penned <button onclick={handleCurrentYearClick} class="underline hover:no-underline transition-all" style="color: var(--text-secondary); cursor: pointer;">{stats.currentYear} reflections</button> of your life{#if stats.lastYear > 0}, {Math.abs(Math.round(((stats.currentYear - stats.lastYear) / stats.lastYear) * 100))}% {stats.currentYear > stats.lastYear ? 'more' : stats.currentYear < stats.lastYear ? 'less' : 'the same'} than last year{:else if stats.lastYear === 0 && stats.currentYear > 0}, your first entries this year{/if}.
+      </p>
+    </div>
+    
+    <div style="text-align: center; margin: var(--space-8) 0;">
+      <div style="height: 1px; background: var(--border-light); margin: 0 auto; width: 60px;"></div>
+    </div>
+    
+    <div style="margin-bottom: var(--space-8);">
+      <p style="color: var(--text-secondary); margin-bottom: var(--space-2);">
+        Your journal holds <button onclick={handleTotalEntriesClick} class="underline hover:no-underline transition-all" style="color: var(--text-secondary); cursor: pointer;">{stats.totalEntries} stories</button> across <button onclick={handleTotalTagsClick} class="underline hover:no-underline transition-all" style="color: var(--text-secondary); cursor: pointer;">{stats.totalTags} themes</button> of your life.
+      </p>
+    </div>
+    
+    <div style="text-align: center; margin: var(--space-8) 0;">
+      <div style="height: 1px; background: var(--border-light); margin: 0 auto; width: 60px;"></div>
     </div>
 
-    <!-- Comparison Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-      <!-- Monthly Comparison -->
-      <div class="stat-card">
-        <h3 style="font-size: var(--text-lg); font-weight: var(--font-semibold); color: var(--text-primary); margin-bottom: var(--space-4);">
-          Monthly Activity
-        </h3>
-        <div class="space-y-4">
-          <div class="flex justify-between items-center">
-            <span style="color: var(--text-secondary);">{getMonthName()}</span>
-            <div class="flex items-center gap-2">
-              <div class="h-2 rounded-full" style="width: {Math.max((stats.currentMonth / Math.max(stats.currentMonth, stats.lastMonth, 1)) * 100, 5)}%; background: var(--accent-blue);"></div>
-              <span style="font-weight: var(--font-semibold); color: var(--text-primary); min-width: 2rem;">{stats.currentMonth}</span>
-            </div>
-          </div>
-          <div class="flex justify-between items-center">
-            <span style="color: var(--text-secondary);">{getMonthName(-1)}</span>
-            <div class="flex items-center gap-2">
-              <div class="h-2 rounded-full" style="width: {Math.max((stats.lastMonth / Math.max(stats.currentMonth, stats.lastMonth, 1)) * 100, 5)}%; background: var(--background-tertiary);"></div>
-              <span style="font-weight: var(--font-semibold); color: var(--text-primary); min-width: 2rem;">{stats.lastMonth}</span>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- Yearly Comparison -->
-      <div class="stat-card">
-        <h3 style="font-size: var(--text-lg); font-weight: var(--font-semibold); color: var(--text-primary); margin-bottom: var(--space-4);">
-          Yearly Activity
-        </h3>
-        <div class="space-y-4">
-          <div class="flex justify-between items-center">
-            <span style="color: var(--text-secondary);">{getYearName()}</span>
-            <div class="flex items-center gap-2">
-              <div class="h-2 rounded-full" style="width: {Math.max((stats.currentYear / Math.max(stats.currentYear, stats.lastYear, 1)) * 100, 5)}%; background: var(--accent-green);"></div>
-              <span style="font-weight: var(--font-semibold); color: var(--text-primary); min-width: 2rem;">{stats.currentYear}</span>
-            </div>
-          </div>
-          <div class="flex justify-between items-center">
-            <span style="color: var(--text-secondary);">{getYearName(-1)}</span>
-            <div class="flex items-center gap-2">
-              <div class="h-2 rounded-full" style="width: {Math.max((stats.lastYear / Math.max(stats.currentYear, stats.lastYear, 1)) * 100, 5)}%; background: var(--background-tertiary);"></div>
-              <span style="font-weight: var(--font-semibold); color: var(--text-primary); min-width: 2rem;">{stats.lastYear}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Top Tags -->
     {#if stats.topTags.length > 0}
-      <div class="stat-card">
-        <h3 style="font-size: var(--text-lg); font-weight: var(--font-semibold); color: var(--text-primary); margin-bottom: var(--space-4);">
-          Most Used Tags
-        </h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {#each stats.topTags as tag}
-            <button 
-              class="flex items-center justify-between p-3 rounded-lg hover:shadow-md transition-all duration-200 hover:scale-[1.02] text-left w-full" 
-              style="background: var(--background-primary); border: 1px solid var(--border-light);"
-              onclick={() => handleTagClick(tag.name)}
-            >
-              <div class="flex items-center gap-3">
-                <span class="w-3 h-3 rounded-full" style="background-color: {tag.color}"></span>
-                <span style="font-weight: var(--font-medium); color: var(--text-primary);">
-                  {capitalize(tag.name)}
-                </span>
-              </div>
-              <span class="text-xs font-medium px-2 py-1 rounded-full" style="background: var(--background-tertiary); color: var(--text-secondary);">
-                {tag.count}
-              </span>
-            </button>
+      <div style="margin-bottom: var(--space-6);">
+        <p style="color: var(--text-secondary);">
+          {#each stats.topTags as tag, index}
+            <button onclick={() => handleTagClick(tag.name)} class="underline hover:no-underline transition-all" style="color: var(--text-secondary); cursor: pointer;">{capitalize(tag.name)}</button> · {tag.count} {tag.count === 1 ? 'entry' : 'entries'}{#if index < stats.topTags.length - 1}<span style="margin: 0 var(--space-4);">|</span>{/if}
           {/each}
-        </div>
+        </p>
       </div>
     {/if}
   </div>
 </div>
 
 <style>
-  .stat-card {
-    background: var(--background-primary);
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-xl);
-    padding: var(--space-6);
-    box-shadow: 0 1px 3px var(--shadow-subtle);
-    transition: var(--transition-standard);
-    cursor: pointer;
-    width: 100%;
-  }
-
-  .stat-card:hover {
-    box-shadow: 0 4px 12px var(--shadow-hover);
-    transform: translateY(-2px);
-  }
-
-  .stat-card:active {
-    transform: translateY(0);
-  }
 </style>
